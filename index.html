@@ -1,0 +1,214 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Railway management system</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 100 100%27%3E%3Ctext y=%27.9em%27 font-size=%2790%27%3E%F0%9F%9A%86%3C/text%3E%3C/svg%3E">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Barlow:wght@400;500;600&display=swap">
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<div class="wrap">
+
+<header class="top">
+  <div>
+    <h1>Railway management system</h1>
+    <p class="sub">One line from Kavali to Chennai, five stations, trains running live. Search for a train, check which seats are free and book a ticket while the network keeps moving.</p>
+  </div>
+  <div class="clockbox">
+    <div class="clock" id="clock" aria-label="Simulated time">06:00</div>
+    <div class="ctrls">
+      <button class="btn ghost" id="pause" type="button">Pause</button>
+      <div class="seg" role="group" aria-label="Simulation speed">
+        <button type="button" data-speed="1" aria-pressed="true">1x</button>
+        <button type="button" data-speed="2" aria-pressed="false">2x</button>
+        <button type="button" data-speed="4" aria-pressed="false">4x</button>
+      </div>
+    </div>
+  </div>
+</header>
+
+<p class="stats" id="stats"></p>
+
+<section class="mapbox">
+  <svg id="map" viewBox="0 0 1000 240" role="img" aria-label="Line map with stations and live train positions"></svg>
+  <div class="legend">
+    <span><i style="background:var(--go)"></i>Running</span>
+    <span><i style="background:var(--wait)"></i>At a station</span>
+    <span><i style="background:var(--stop)"></i>Held by a signal</span>
+  </div>
+  <p class="maphint">Swipe the map sideways to see the whole line.</p>
+</section>
+
+<div role="tablist" aria-label="Sections">
+  <button role="tab" id="t-live" data-tab="live" aria-selected="true">Live board</button>
+  <button role="tab" id="t-find" data-tab="find" aria-selected="false" tabindex="-1">Find a train</button>
+  <button role="tab" id="t-seats" data-tab="seats" aria-selected="false" tabindex="-1">Seat availability</button>
+  <button role="tab" id="t-book" data-tab="book" aria-selected="false" tabindex="-1">Book a ticket</button>
+  <button role="tab" id="t-pax" data-tab="pax" aria-selected="false" tabindex="-1">Passengers</button>
+  <button role="tab" id="t-time" data-tab="time" aria-selected="false" tabindex="-1">Timetable</button>
+</div>
+
+<!-- LIVE BOARD -->
+<section class="panel" id="p-live" role="tabpanel" aria-labelledby="t-live">
+  <div class="cols">
+    <div>
+      <div class="picker">
+        <label for="bdStation" style="display:block">Departures at</label>
+        <select id="bdStation"></select>
+      </div>
+      <div class="boardwrap">
+        <table>
+          <thead><tr><th>Due</th><th>Platform</th><th>Train</th><th>Towards</th><th>Status</th></tr></thead>
+          <tbody id="boardBody"></tbody>
+        </table>
+      </div>
+    </div>
+    <div>
+      <h2>Control log</h2>
+      <ol class="log" id="log"></ol>
+    </div>
+  </div>
+</section>
+
+<!-- FIND A TRAIN -->
+<section class="panel" id="p-find" role="tabpanel" aria-labelledby="t-find" hidden>
+  <h2>Find a train</h2>
+  <p class="hint" style="margin-bottom:14px">Search by number or name, or choose the stations you want to travel between. Results cover each train's current run.</p>
+  <form class="filters" id="fdForm" role="search" novalidate>
+    <label>Train number or name<input id="fdQ" placeholder="12001 or Harbour Mail" autocomplete="off"></label>
+    <label>From<select id="fdFrom"></select></label>
+    <label>To<select id="fdTo"></select></label>
+    <label>Sort by
+      <select id="fdSort">
+        <option value="depart">Earliest departure</option>
+        <option value="duration">Shortest trip</option>
+        <option value="seats">Most seats free</option>
+      </select>
+    </label>
+    <button class="btn ghost" id="fdClear" type="button">Clear search</button>
+  </form>
+  <p class="hint" id="fdCount" aria-live="polite" style="margin-bottom:8px"></p>
+  <div class="scroll">
+    <table>
+      <thead><tr><th>Train</th><th>Journey</th><th>Leaves</th><th>Arrives</th><th>Trip time</th><th>Status</th><th>Free seats</th><th></th></tr></thead>
+      <tbody id="fdBody"></tbody>
+    </table>
+  </div>
+</section>
+
+<!-- SEAT AVAILABILITY -->
+<section class="panel" id="p-seats" role="tabpanel" aria-labelledby="t-seats" hidden>
+  <h2>Seat availability</h2>
+  <form class="filters seatf" id="stForm" novalidate>
+    <label>Train<select id="stTrain"></select></label>
+    <label>From<select id="stFrom"></select></label>
+    <label>To<select id="stTo"></select></label>
+    <button class="btn" id="stBook" type="button">Book on this journey</button>
+  </form>
+  <p class="hint" id="stRun" style="margin-bottom:14px"></p>
+  <div class="scroll">
+    <table>
+      <thead><tr><th>Class</th><th>Seats</th><th>Booked</th><th>Free</th><th>Fare per seat</th><th>Availability</th></tr></thead>
+      <tbody id="stBody"></tbody>
+    </table>
+  </div>
+  <div class="seatkey">
+    <span><i class="seat mini"></i>Free for this journey</span>
+    <span><i class="seat mini taken"></i>Booked for all or part of this journey</span>
+  </div>
+  <div class="seatblocks" id="seatBlocks"></div>
+</section>
+
+<!-- BOOKING -->
+<section class="panel" id="p-book" role="tabpanel" aria-labelledby="t-book" hidden>
+  <div class="cols even">
+    <div>
+      <h2>Book a seat</h2>
+      <form id="bkForm" novalidate>
+        <label>Train<select id="bkTrain"></select></label>
+        <div class="row2">
+          <label>Board at<select id="bkFrom"></select></label>
+          <label>Get off at<select id="bkTo"></select></label>
+        </div>
+        <div class="row2">
+          <label>Class<select id="bkClass"></select></label>
+          <label>Number of seats<input id="bkSeats" type="number" min="1" max="6" value="1"></label>
+        </div>
+        <p class="hint" id="bkInfo"></p>
+        <div id="bkPax"></div>
+        <div class="row2">
+          <label>Phone number<input id="bkPhone" type="tel" inputmode="tel" maxlength="20" autocomplete="tel" required></label>
+          <label>Email (optional)<input id="bkEmail" type="email" maxlength="60" autocomplete="email"></label>
+        </div>
+        <div><button class="btn" id="bkSubmit" type="submit">Confirm booking</button></div>
+        <p class="msg" id="bkMsg" role="status"></p>
+      </form>
+    </div>
+    <div>
+      <h2>Tickets</h2>
+      <label style="margin-bottom:12px">Find by ticket number, passenger or phone<input id="bkSearch" placeholder="Type to filter"></label>
+      <div id="bkList"></div>
+    </div>
+  </div>
+</section>
+
+<!-- PASSENGERS -->
+<section class="panel" id="p-pax" role="tabpanel" aria-labelledby="t-pax" hidden>
+  <h2>Passenger details</h2>
+  <form class="filters three" id="pxForm" novalidate>
+    <label>Train<select id="pxTrain"></select></label>
+    <label>Show
+      <select id="pxStatus">
+        <option value="Confirmed">Confirmed tickets</option>
+        <option value="all">All tickets</option>
+      </select>
+    </label>
+    <label>Search<input id="pxQ" placeholder="Name, ticket number, seat or phone" autocomplete="off"></label>
+  </form>
+  <p class="hint" id="pxCount" aria-live="polite" style="margin-bottom:8px"></p>
+  <div class="scroll">
+    <table>
+      <thead><tr><th>Passenger</th><th>Age</th><th>Gender</th><th>Class and seat</th><th>Train</th><th>Journey</th><th>Ticket</th><th>Contact</th><th>Status</th></tr></thead>
+      <tbody id="pxBody"></tbody>
+    </table>
+  </div>
+</section>
+
+<!-- TIMETABLE -->
+<section class="panel" id="p-time" role="tabpanel" aria-labelledby="t-time" hidden>
+  <h2>Trains on the line</h2>
+  <div class="scroll">
+    <table>
+      <thead><tr><th>Number</th><th>Name</th><th>Run</th><th>Position</th><th>Next stop</th><th>Status</th><th>Free for full run</th></tr></thead>
+      <tbody id="ttBody"></tbody>
+    </table>
+  </div>
+  <h2 style="margin-top:34px">Add a train</h2>
+  <form id="addTrain" style="max-width:640px" novalidate>
+    <div class="row2">
+      <label>Train number<input id="atNo" placeholder="12003" maxlength="6" required></label>
+      <label>Train name<input id="atName" placeholder="Morning Special" maxlength="30" required></label>
+    </div>
+    <div class="row2">
+      <label>Starts at<select id="atFrom"></select></label>
+      <label>Ends at<select id="atTo"></select></label>
+    </div>
+    <div class="row2">
+      <label>Service type
+        <select id="atSpeed"><option value="90">Express (fewer delays, faster)</option><option value="60">Local (slower)</option></select>
+      </label>
+      <label>Seats<input id="atSeats" type="number" min="10" max="600" value="100"></label>
+    </div>
+    <p class="hint">Seats are split into 10% first class, 30% chair car and 60% second class.</p>
+    <div><button class="btn" type="submit">Add train</button></div>
+    <p class="msg" id="atMsg" role="status"></p>
+  </form>
+</section>
+
+</div>
+
+<script src="js/app.js"></script>
+</body>
+</html>
